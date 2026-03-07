@@ -3,7 +3,7 @@
 import tempfile
 from unittest.mock import patch
 
-from mainai_primitives.env import Platform, detect_platform, get_tmp_dir, needs_tty_workaround
+from mainai_primitives.env import Platform, detect_platform, get_secondbrain_path, get_tmp_dir, needs_tty_workaround
 
 
 class TestDetectPlatform:
@@ -41,6 +41,23 @@ class TestGetTmpDir:
         with patch("mainai_primitives.env.detect_platform", return_value=Platform.LINUX):
             result = get_tmp_dir()
             assert result.exists()
+
+
+class TestGetSecondbrainPath:
+    def test_termux(self):
+        with patch("mainai_primitives.env.detect_platform", return_value=Platform.TERMUX):
+            p = get_secondbrain_path()
+            assert str(p).endswith("storage/documents/Secondbrain")
+
+    def test_macos(self):
+        with patch("mainai_primitives.env.detect_platform", return_value=Platform.MACOS):
+            p = get_secondbrain_path()
+            assert str(p).endswith("Documents/Secondbrain")
+
+    def test_linux(self):
+        with patch("mainai_primitives.env.detect_platform", return_value=Platform.LINUX):
+            p = get_secondbrain_path()
+            assert str(p).endswith("Code/Secondbrain")
 
 
 class TestNeedsTtyWorkaround:
