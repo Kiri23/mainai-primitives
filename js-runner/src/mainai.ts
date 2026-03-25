@@ -8,10 +8,12 @@
  *   npx tsx src/mainai.ts "Resume el email de Nate sobre Accenture"
  *   npx tsx src/mainai.ts "¿Qué emails me llegaron hoy?"
  *   npx tsx src/mainai.ts "Busca emails de Amazon con attachments"
+ *   npx tsx src/mainai.ts "https://www.youtube.com/watch?v=xyz"
  *   npx tsx src/mainai.ts --stream "Lee mi último email"
  */
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { gmailServer } from "./tools/gmail.ts";
+import { urlFetcherServer } from "./tools/url-fetcher.ts";
 
 const args = process.argv.slice(2);
 const streaming = args.includes("--stream");
@@ -25,8 +27,8 @@ console.log(`Prompt: "${prompt}"\n`);
 for await (const message of query({
   prompt,
   options: {
-    mcpServers: { gmail: gmailServer },
-    allowedTools: ["mcp__gmail__*"],
+    mcpServers: { gmail: gmailServer, url_fetcher: urlFetcherServer },
+    allowedTools: ["mcp__gmail__*", "mcp__url_fetcher__*"],
     // Only give Claude our tools + basic read capabilities
     tools: ["Read", "Glob", "Grep"],
   },
