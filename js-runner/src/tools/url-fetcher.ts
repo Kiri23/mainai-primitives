@@ -67,7 +67,7 @@ async function fetchYouTubeTranscript(url: string): Promise<string | null> {
   log(`Downloading transcript via yt-dlp: ${url}`);
   try {
     execSync(
-      `yt-dlp --write-auto-sub --sub-lang en,es --skip-download --sub-format srt -o "${tmpBase}" "${url}"`,
+      `yt-dlp --write-auto-sub --sub-lang en --skip-download --sub-format srt -o "${tmpBase}" "${url}"`,
       {
         encoding: "utf-8",
         timeout: 60_000,
