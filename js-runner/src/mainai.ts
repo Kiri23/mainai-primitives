@@ -15,6 +15,7 @@ import * as readline from "node:readline";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { gmailServer } from "./tools/gmail.ts";
 import { urlFetcherServer } from "./tools/url-fetcher.ts";
+import { obsidianServer } from "./tools/obsidian.ts";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -34,8 +35,8 @@ const prompt = args
 // ---------------------------------------------------------------------------
 
 const sharedOptions = {
-  mcpServers: { gmail: gmailServer, url_fetcher: urlFetcherServer },
-  allowedTools: ["mcp__gmail__*", "mcp__url_fetcher__*"],
+  mcpServers: { gmail: gmailServer, url_fetcher: urlFetcherServer, obsidian: obsidianServer },
+  allowedTools: ["mcp__gmail__*", "mcp__url_fetcher__*", "mcp__obsidian__*"],
   tools: ["Read", "Glob", "Grep"] as string[],
   includePartialMessages: streaming,
   ...(resumeSessionId ? { resume: resumeSessionId } : {}),

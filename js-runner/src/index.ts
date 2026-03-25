@@ -8,3 +8,4 @@ export type {
 // Tool servers
 export { gmailServer } from "./tools/gmail.ts";
 export { urlFetcherServer } from "./tools/url-fetcher.ts";
+export { obsidianServer } from "./tools/obsidian.ts";
