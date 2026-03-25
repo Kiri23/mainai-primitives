@@ -41,14 +41,21 @@ function classifyUrl(url: string): string {
   return "article"; // default: try Jina
 }
 
+function log(msg: string) {
+  process.stderr.write(`[url_fetcher] ${msg}\n`);
+}
+
 async function fetchJina(url: string): Promise<string> {
+  log(`Fetching via Jina Reader: ${url}`);
   const jinaUrl = `https://r.jina.ai/${url}`;
   const res = await fetch(jinaUrl, {
     headers: { "User-Agent": "Mozilla/5.0", Accept: "text/plain" },
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`Jina fetch failed: ${res.status} ${res.statusText}`);
-  return res.text();
+  const text = await res.text();
+  log(`Jina done: ${text.length} chars`);
+  return text;
 }
 
 async function fetchYtdlp(url: string): Promise<string> {
@@ -56,10 +63,12 @@ async function fetchYtdlp(url: string): Promise<string> {
   const { readFileSync } = await import("node:fs");
   const tmpBase = `/tmp/yt-sub-${Date.now()}`;
 
+  log(`Downloading subtitles via yt-dlp: ${url}`);
   try {
+    // stderr → inherit so yt-dlp progress shows in terminal
     execSync(
       `yt-dlp --write-auto-sub --sub-lang en --skip-download --sub-format srt -o "${tmpBase}" "${url}"`,
-      { encoding: "utf-8", timeout: 60_000, stdio: ["pipe", "pipe", "pipe"] }
+      { encoding: "utf-8", timeout: 60_000, stdio: ["pipe", "pipe", "inherit"] }
     );
     const srtFile = `${tmpBase}.en.srt`;
     const srt = readFileSync(srtFile, "utf-8");
@@ -74,9 +83,10 @@ async function fetchYtdlp(url: string): Promise<string> {
       .join("\n")
       .replace(/\n{3,}/g, "\n\n");
     try { execSync(`rm -f "${tmpBase}"*.srt "${tmpBase}"*.vtt 2>/dev/null`); } catch {}
+    log(`yt-dlp done: ${text.length} chars`);
     if (text.trim().length > 100) return text.trim();
-  } catch {
-    // fallback to Jina
+  } catch (err: any) {
+    log(`yt-dlp failed: ${err.message?.slice(0, 200) ?? "unknown"}, falling back to Jina`);
   }
   try {
     const { execSync: exec2 } = await import("node:child_process");
@@ -103,6 +113,7 @@ const fetchUrl = tool(
   },
   async (args) => {
     const type = classifyUrl(args.url);
+    log(`Classified "${args.url}" as: ${type}`);
 
     if (type === "skip") {
       return {
