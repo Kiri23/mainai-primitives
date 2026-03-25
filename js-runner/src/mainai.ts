@@ -35,8 +35,14 @@ const prompt = args
 // ---------------------------------------------------------------------------
 
 const sharedOptions = {
-  mcpServers: { gmail: gmailServer, url_fetcher: urlFetcherServer, obsidian: obsidianServer },
-  allowedTools: ["mcp__gmail__*", "mcp__url_fetcher__*", "mcp__obsidian__*"],
+  mcpServers: {
+    gmail: gmailServer,
+    url_fetcher: urlFetcherServer,
+    obsidian: obsidianServer,
+    // MemoryGraph — external SSE server on VPS via Tailscale
+    memorygraph: { type: "sse" as const, url: process.env.MEMORYGRAPH_URL ?? "https://vps.tailc0560d.ts.net/sse" },
+  },
+  allowedTools: ["mcp__gmail__*", "mcp__url_fetcher__*", "mcp__obsidian__*", "mcp__memorygraph__*"],
   tools: ["Read", "Glob", "Grep"] as string[],
   includePartialMessages: streaming,
   ...(resumeSessionId ? { resume: resumeSessionId } : {}),

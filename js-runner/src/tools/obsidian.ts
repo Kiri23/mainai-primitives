@@ -56,9 +56,11 @@ const saveToObsidian = tool(
     log(`Saving note: "${args.title}" (source: ${args.source})`);
 
     try {
+      const jsonInput = JSON.stringify(payload);
       const result = execSync(
-        `echo '${JSON.stringify(payload).replace(/'/g, "'\\''")}' | node secondbrain-writer.mjs`,
+        `node secondbrain-writer.mjs`,
         {
+          input: jsonInput,
           encoding: "utf-8",
           cwd: APISCRIPTS_DIR,
           timeout: 10_000,
