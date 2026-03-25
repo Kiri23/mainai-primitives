@@ -61,16 +61,26 @@ async function fetchJina(url: string): Promise<string> {
 async function fetchYtdlp(url: string): Promise<string> {
   const { execSync, } = await import("node:child_process");
   const { readFileSync } = await import("node:fs");
-  const tmpBase = `/tmp/yt-sub-${Date.now()}`;
+  const tmpDir = process.env.TMPDIR ?? "/data/data/com.termux/files/usr/tmp";
+  const tmpBase = `${tmpDir}/yt-sub-${Date.now()}`;
 
   log(`Downloading subtitles via yt-dlp: ${url}`);
   try {
     // stderr → inherit so yt-dlp progress shows in terminal
     execSync(
-      `yt-dlp --write-auto-sub --sub-lang en --skip-download --sub-format srt -o "${tmpBase}" "${url}"`,
-      { encoding: "utf-8", timeout: 60_000, stdio: ["pipe", "pipe", "inherit"] }
+      `yt-dlp --write-auto-sub --sub-lang en,es --skip-download --sub-format srt -o "${tmpBase}" "${url}"`,
+      { encoding: "utf-8", timeout: 60_000, stdio: ["pipe", "pipe", "inherit"], env: { ...process.env, TMPDIR: process.env.TMPDIR ?? "/data/data/com.termux/files/usr/tmp" } }
     );
-    const srtFile = `${tmpBase}.en.srt`;
+    // Find whichever subtitle lang was downloaded
+    const { readdirSync } = await import("node:fs");
+    const { dirname, basename } = await import("node:path");
+    const dir = dirname(tmpBase);
+    const prefix = basename(tmpBase);
+    const srtFile = readdirSync(dir)
+      .filter((f) => f.startsWith(prefix) && f.endsWith(".srt"))
+      .map((f) => `${dir}/${f}`)[0];
+    if (!srtFile) throw new Error("No subtitle file found");
+    log(`Found subtitle: ${srtFile}`);
     const srt = readFileSync(srtFile, "utf-8");
     const text = srt
       .split("\n")
