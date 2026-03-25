@@ -1,0 +1,21 @@
+{
+  "name": "mainai-primitives",
+  "version": "0.1.0",
+  "description": "MainAI primitives — Claude Agent SDK runner + MCP tools",
+  "type": "module",
+  "main": "js-runner/src/index.ts",
+  "scripts": {
+    "dev": "npx tsx js-runner/src/index.ts",
+    "demo": "npx tsx js-runner/src/demo.ts",
+    "mainai": "npx tsx js-runner/src/mainai.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
