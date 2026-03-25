@@ -13,9 +13,7 @@
  */
 import * as readline from "node:readline";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { gmailServer } from "./tools/gmail.ts";
-import { urlFetcherServer } from "./tools/url-fetcher.ts";
-import { obsidianServer } from "./tools/obsidian.ts";
+import { getMcpServers, getAllowedTools } from "./mcp-config.ts";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -35,14 +33,8 @@ const prompt = args
 // ---------------------------------------------------------------------------
 
 const sharedOptions = {
-  mcpServers: {
-    gmail: gmailServer,
-    url_fetcher: urlFetcherServer,
-    obsidian: obsidianServer,
-    // MemoryGraph — external SSE server on VPS via Tailscale
-    memorygraph: { type: "sse" as const, url: process.env.MEMORYGRAPH_URL ?? "https://vps.tailc0560d.ts.net/sse" },
-  },
-  allowedTools: ["mcp__gmail__*", "mcp__url_fetcher__*", "mcp__obsidian__*", "mcp__memorygraph__*"],
+  mcpServers: getMcpServers(),
+  allowedTools: getAllowedTools(),
   tools: ["Read", "Glob", "Grep"] as string[],
   includePartialMessages: streaming,
   ...(resumeSessionId ? { resume: resumeSessionId } : {}),
