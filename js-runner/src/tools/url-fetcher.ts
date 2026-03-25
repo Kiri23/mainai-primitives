@@ -1,28 +1,23 @@
 /**
  * URL Fetcher tool for Claude Agent SDK.
  *
- * Accepts any URL, classifies it (YouTube, article, Substack, Medium, etc.),
- * fetches the content using the right strategy (yt-dlp for video, Jina for articles),
- * and returns the text content to Claude.
- *
- * Reuses classifyUrl + fetchContent from ApiScripts/scrape-links.mjs.
+ * Accepts any URL, classifies it, and fetches content:
+ * - YouTube → metadata via YouTube Data API (ApiScripts) + transcript via yt-dlp
+ * - Articles → Jina Reader (r.jina.ai)
  */
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// Dynamic import of scrape-links.mjs
+// Config
 // ---------------------------------------------------------------------------
 
 const APISCRIPTS_DIR =
   process.env.APISCRIPTS_DIR ??
   "/storage/emulated/0/Documents/Code/ApiScripts";
 
-// scrape-links.mjs doesn't export its functions (it's a CLI script),
-// so we inline the classification + fetching logic here, matching its patterns.
-
 const CLASSIFY_RULES = [
-  { type: "video", patterns: ["youtube.com/watch", "youtube.com/live", "youtu.be/"] },
+  { type: "video", patterns: ["youtube.com/watch", "youtube.com/live", "youtu.be/", "m.youtube.com/watch"] },
   { type: "article", patterns: ["medium.com/", "dev.to/", "substack.com/"] },
   { type: "article", patterns: ["/blog/", "/posts/", "/article/"] },
   { type: "article", patterns: ["chatgpt.com/share/"] },
@@ -38,48 +33,60 @@ function classifyUrl(url: string): string {
       return rule.type;
     }
   }
-  return "article"; // default: try Jina
+  return "article";
 }
 
 function log(msg: string) {
   process.stderr.write(`[url_fetcher] ${msg}\n`);
 }
 
-async function fetchJina(url: string): Promise<string> {
-  log(`Fetching via Jina Reader: ${url}`);
-  const jinaUrl = `https://r.jina.ai/${url}`;
-  const res = await fetch(jinaUrl, {
-    headers: { "User-Agent": "Mozilla/5.0", Accept: "text/plain" },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) throw new Error(`Jina fetch failed: ${res.status} ${res.statusText}`);
-  const text = await res.text();
-  log(`Jina done: ${text.length} chars`);
-  return text;
+// ---------------------------------------------------------------------------
+// YouTube — metadata via ApiScripts + transcript via yt-dlp
+// ---------------------------------------------------------------------------
+
+let _parseVideoId: ((input: string) => string) | null = null;
+let _getVideoInfo: ((videoId: string) => Promise<any>) | null = null;
+
+async function loadYouTubeModule() {
+  if (!_parseVideoId) {
+    const mod = await import(`${APISCRIPTS_DIR}/youtube/get-video.mjs`);
+    _parseVideoId = mod.parseVideoId;
+    _getVideoInfo = mod.getVideoInfo;
+  }
+  return { parseVideoId: _parseVideoId!, getVideoInfo: _getVideoInfo! };
 }
 
-async function fetchYtdlp(url: string): Promise<string> {
-  const { execSync, } = await import("node:child_process");
-  const { readFileSync } = await import("node:fs");
+async function fetchYouTubeTranscript(url: string): Promise<string | null> {
+  const { execSync } = await import("node:child_process");
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const { dirname, basename } = await import("node:path");
+
   const tmpDir = process.env.TMPDIR ?? "/data/data/com.termux/files/usr/tmp";
   const tmpBase = `${tmpDir}/yt-sub-${Date.now()}`;
 
-  log(`Downloading subtitles via yt-dlp: ${url}`);
+  log(`Downloading transcript via yt-dlp: ${url}`);
   try {
-    // stderr → inherit so yt-dlp progress shows in terminal
     execSync(
       `yt-dlp --write-auto-sub --sub-lang en,es --skip-download --sub-format srt -o "${tmpBase}" "${url}"`,
-      { encoding: "utf-8", timeout: 60_000, stdio: ["pipe", "pipe", "inherit"], env: { ...process.env, TMPDIR: process.env.TMPDIR ?? "/data/data/com.termux/files/usr/tmp" } }
+      {
+        encoding: "utf-8",
+        timeout: 60_000,
+        stdio: ["pipe", "pipe", "inherit"],
+        env: { ...process.env, TMPDIR: tmpDir },
+      }
     );
-    // Find whichever subtitle lang was downloaded
-    const { readdirSync } = await import("node:fs");
-    const { dirname, basename } = await import("node:path");
+
     const dir = dirname(tmpBase);
     const prefix = basename(tmpBase);
     const srtFile = readdirSync(dir)
       .filter((f) => f.startsWith(prefix) && f.endsWith(".srt"))
       .map((f) => `${dir}/${f}`)[0];
-    if (!srtFile) throw new Error("No subtitle file found");
+
+    if (!srtFile) {
+      log("No subtitle file found");
+      return null;
+    }
+
     log(`Found subtitle: ${srtFile}`);
     const srt = readFileSync(srtFile, "utf-8");
     const text = srt
@@ -92,32 +99,100 @@ async function fetchYtdlp(url: string): Promise<string> {
       )
       .join("\n")
       .replace(/\n{3,}/g, "\n\n");
-    try { execSync(`rm -f "${tmpBase}"*.srt "${tmpBase}"*.vtt 2>/dev/null`); } catch {}
-    log(`yt-dlp done: ${text.length} chars`);
-    if (text.trim().length > 100) return text.trim();
-  } catch (err: any) {
-    log(`yt-dlp failed: ${err.message?.slice(0, 200) ?? "unknown"}, falling back to Jina`);
-  }
-  try {
-    const { execSync: exec2 } = await import("node:child_process");
-    exec2(`rm -f "${tmpBase}"* 2>/dev/null`);
-  } catch {}
 
-  return fetchJina(url);
+    try { execSync(`rm -f "${tmpBase}"*.srt "${tmpBase}"*.vtt 2>/dev/null`); } catch {}
+    log(`Transcript done: ${text.length} chars`);
+    return text.trim().length > 100 ? text.trim() : null;
+  } catch (err: any) {
+    log(`yt-dlp failed: ${err.message?.slice(0, 200) ?? "unknown"}`);
+    try { execSync(`rm -f "${tmpBase}"* 2>/dev/null`); } catch {}
+    return null;
+  }
 }
 
-async function fetchContent(url: string, type: string): Promise<string> {
-  if (type === "video") return fetchYtdlp(url);
-  return fetchJina(url);
+async function fetchYouTube(url: string): Promise<string> {
+  const { parseVideoId, getVideoInfo } = await loadYouTubeModule();
+  const videoId = parseVideoId(url);
+
+  // 1. Metadata via YouTube Data API
+  log(`Fetching video metadata: ${videoId}`);
+  let metaBlock = "";
+  try {
+    const video = await getVideoInfo(videoId);
+    if (video) {
+      const { snippet, contentDetails, statistics } = video;
+      metaBlock = [
+        `Title: ${snippet.title}`,
+        `Channel: ${snippet.channelTitle}`,
+        `Published: ${new Date(snippet.publishedAt).toLocaleDateString()}`,
+        `Duration: ${contentDetails.duration}`,
+        `Views: ${Number(statistics.viewCount).toLocaleString()}`,
+        `Likes: ${Number(statistics.likeCount).toLocaleString()}`,
+        ``,
+        `Description:`,
+        snippet.description.slice(0, 500),
+      ].join("\n");
+      log(`Metadata OK: "${snippet.title}"`);
+    }
+  } catch (err: any) {
+    log(`YouTube API metadata failed: ${err.message?.slice(0, 100) ?? "unknown"}`);
+  }
+
+  // 2. Transcript via yt-dlp
+  const transcript = await fetchYouTubeTranscript(url);
+
+  // Combine
+  const parts: string[] = [];
+  if (metaBlock) parts.push(metaBlock);
+  if (transcript) {
+    parts.push("\n--- Transcript ---\n");
+    parts.push(transcript);
+  }
+
+  if (parts.length === 0) {
+    throw new Error(`Could not fetch video metadata or transcript for ${url}`);
+  }
+
+  if (!transcript && metaBlock) {
+    parts.push("\n(Transcript not available — yt-dlp failed or no subtitles found)");
+  }
+
+  return parts.join("\n");
 }
 
 // ---------------------------------------------------------------------------
-// Tools
+// Articles — Jina Reader
+// ---------------------------------------------------------------------------
+
+async function fetchArticle(url: string): Promise<string> {
+  log(`Fetching article via Jina Reader: ${url}`);
+  const jinaUrl = `https://r.jina.ai/${url}`;
+  const res = await fetch(jinaUrl, {
+    headers: { "User-Agent": "Mozilla/5.0", Accept: "text/plain" },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`Jina fetch failed: ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  log(`Article done: ${text.length} chars`);
+  return text;
+}
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
+
+async function fetchContent(url: string, type: string): Promise<string> {
+  if (type === "video") return fetchYouTube(url);
+  return fetchArticle(url);
+}
+
+// ---------------------------------------------------------------------------
+// Tool
 // ---------------------------------------------------------------------------
 
 const fetchUrl = tool(
   "fetch_url",
-  "Fetch and extract content from any URL. Automatically detects the type (YouTube video, article, blog post, Medium, Substack, etc.) and uses the right extraction method: yt-dlp for videos (gets transcript), Jina Reader for articles (gets clean markdown). Returns the full text content.",
+  "Fetch and extract content from any URL. Automatically detects the type: YouTube videos get metadata (title, channel, views) via YouTube API plus transcript via yt-dlp. Articles, blogs, Substack, Medium get clean markdown via Jina Reader. Returns the full text content.",
   {
     url: z.string().url().describe("The URL to fetch content from"),
   },
@@ -143,7 +218,6 @@ const fetchUrl = tool(
     try {
       const content = await fetchContent(args.url, type);
 
-      // Truncate if massive (avoid blowing context window)
       const maxChars = 15_000;
       const truncated = content.length > maxChars
         ? content.slice(0, maxChars) + `\n\n... [truncated, ${content.length} total chars]`
