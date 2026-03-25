@@ -4,3 +4,6 @@ export type {
   ClaudeRunResult,
   ClaudeEventHandlers,
 } from "./claude-runner.ts";
+
+// Tool servers
+export { gmailServer } from "./tools/gmail.ts";
