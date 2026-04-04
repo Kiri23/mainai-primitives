@@ -7,6 +7,7 @@
 import { gmailServer } from "./tools/gmail.ts";
 import { urlFetcherServer } from "./tools/url-fetcher.ts";
 import { obsidianServer } from "./tools/obsidian.ts";
+import { classifyServer } from "./tools/classify.ts";
 
 const MEMORYGRAPH_URL =
   process.env.MEMORYGRAPH_URL ?? "https://vps.tailc0560d.ts.net/sse";
@@ -17,6 +18,7 @@ export function getMcpServers() {
     gmail: gmailServer,
     url_fetcher: urlFetcherServer,
     obsidian: obsidianServer,
+    classify: classifyServer,
     memorygraph: { type: "sse" as const, url: MEMORYGRAPH_URL },
   };
 }

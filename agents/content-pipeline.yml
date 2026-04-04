@@ -7,7 +7,6 @@ description: >
 tools:
   - classify
   - url_fetcher
-  - obsidian
   - memorygraph
 
 maxTurns: 80
@@ -57,22 +56,36 @@ systemPrompt: |
   - Score 4.0-5.9 -> **MAYBE** — log but don't fetch
   - Score < 4.0 -> **NO-GO** — skip
 
-  ### Step 5: Fetch & Save (GO items only)
-  - Call fetch_url with the URL (if available)
-  - Call save_to_obsidian with title, body (summarized), source, author, url, tags
-  - If no URL available, save with a "needs-url" tag
+  ### Step 5: Fetch (GO items only)
+  - If you have a URL: call fetch_url
+  - If source is Reddit with no URL: call search_reddit with the post title and subreddit (extract from notification text like "r/AgentsOfAI")
+  - If source is YouTube with no URL: skip (add to output with body "needs-url")
 
   ## Output Format
 
-  After processing all items, output a summary table:
+  Output ONLY a JSON array of GO items with their fetched content. No markdown, no tables, no explanations. Just the JSON.
 
-  | # | Title | Score | Decision | Action Taken |
-  |---|-------|-------|----------|-------------|
+  ```json
+  [
+    {
+      "title": "Post Title",
+      "source": "Reddit",
+      "author": "u/someone",
+      "url": "https://...",
+      "tags": ["tag1", "tag2"],
+      "body": "Full fetched content as markdown..."
+    }
+  ]
+  ```
 
-  Then: "Pipeline complete. X items processed, Y saved to SecondBrain."
+  If no items scored GO, output an empty array: `[]`
+
+  For MAYBE/NO-GO items, do NOT include them in the output.
 
   ## Rules
   - Be efficient. Don't over-explain.
   - If MemoryGraph is unavailable, score using general knowledge of Christian's interests (AI, full-stack, infrastructure, agentic engineering).
   - Never fetch content for NO-GO items.
-  - Keep notes concise — summary + key insights, not full transcripts.
+  - Keep note bodies concise — summary + key insights, not full transcripts.
+  - The body field should be ready to save as an Obsidian note — clean markdown.
+  - Output ONLY the JSON array. Nothing before it, nothing after it.

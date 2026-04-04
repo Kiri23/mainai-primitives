@@ -240,11 +240,101 @@ const fetchUrl = tool(
 );
 
 // ---------------------------------------------------------------------------
+// Reddit Search — find post by title/keywords in a subreddit
+// ---------------------------------------------------------------------------
+
+const REDDIT_DIGEST_PATH =
+  process.env.REDDIT_DIGEST_PATH ??
+  "/storage/emulated/0/Documents/Code/ApiScripts/reddit/reddit-digest.py";
+
+const searchReddit = tool(
+  "search_reddit",
+  "Search for a Reddit post by keywords or title within a subreddit. Returns the post URL, full text, top comments, and any external links found. Use this when you have a notification title from Reddit but no URL — e.g. 'r/AgentsOfAI: Building an AI agent that finds repos'. Extracts subreddit from the input if prefixed with r/.",
+  {
+    query: z.string().describe("Search keywords or post title"),
+    subreddit: z.string().optional().describe("Subreddit to search in (e.g. 'AgentsOfAI'). If omitted, searches all of Reddit."),
+  },
+  async (args) => {
+    const { execSync } = await import("node:child_process");
+
+    // Step 1: Search for the post URL via Reddit JSON API
+    const sub = args.subreddit ?? "";
+    const searchPath = sub
+      ? `r/${sub}/search.json?q=${encodeURIComponent(args.query)}&restrict_sr=on&sort=relevance&limit=3&raw_json=1`
+      : `search.json?q=${encodeURIComponent(args.query)}&sort=relevance&limit=3&raw_json=1`;
+    const searchUrl = `https://www.reddit.com/${searchPath}`;
+
+    log(`Searching Reddit: ${searchUrl}`);
+
+    try {
+      const res = await fetch(searchUrl, {
+        headers: { "User-Agent": "TermuxContentPipeline/1.0 (by /u/kiri23; personal research tool)" },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) throw new Error(`Reddit search failed: ${res.status}`);
+      const data = await res.json() as any;
+
+      const posts = data?.data?.children ?? [];
+      if (posts.length === 0) {
+        return {
+          content: [{ type: "text" as const, text: `No Reddit posts found for "${args.query}" in ${sub ? `r/${sub}` : "all"}` }],
+        };
+      }
+
+      // Take the best match
+      const best = posts[0].data;
+      const postUrl = `https://www.reddit.com${best.permalink}`;
+
+      // Step 2: Use reddit-digest.py --read to get full post + comments
+      log(`Found post: ${postUrl} — fetching full content`);
+      const fullPost = execSync(
+        `python3 "${REDDIT_DIGEST_PATH}" --read "${postUrl}" --json`,
+        { encoding: "utf-8", timeout: 30_000 }
+      );
+
+      const postData = JSON.parse(fullPost);
+      const parts = [
+        `# ${postData.title}`,
+        `**r/${postData.subreddit || sub}** | ${postData.author} | URL: ${postData.url}`,
+        "",
+        postData.body,
+      ];
+
+      if (postData.links?.length > 0) {
+        parts.push("\n## External Links Found");
+        for (const link of postData.links) {
+          parts.push(`- ${link}`);
+        }
+      }
+
+      const text = parts.join("\n");
+      const maxChars = 15_000;
+      const truncated = text.length > maxChars
+        ? text.slice(0, maxChars) + `\n\n... [truncated, ${text.length} total chars]`
+        : text;
+
+      log(`Reddit post fetched: ${postData.title} (${text.length} chars)`);
+
+      return {
+        content: [{ type: "text" as const, text: truncated }],
+      };
+    } catch (err: any) {
+      log(`Reddit search failed: ${err.message}`);
+      return {
+        content: [{ type: "text" as const, text: `Reddit search failed: ${err.message}` }],
+        isError: true,
+      };
+    }
+  },
+  { annotations: { readOnlyHint: true } }
+);
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
 export const urlFetcherServer = createSdkMcpServer({
   name: "url_fetcher",
   version: "1.0.0",
-  tools: [fetchUrl],
+  tools: [fetchUrl, searchReddit],
 });
