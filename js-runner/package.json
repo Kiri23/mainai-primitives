@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "npx tsx src/index.ts",
     "demo": "npx tsx src/demo.ts",
-    "mainai": "npx tsx src/mainai.ts"
+    "mainai": "npx tsx src/mainai.ts",
+    "ingest": "npx tsx src/ingest.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
