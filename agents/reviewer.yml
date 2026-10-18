@@ -3,8 +3,7 @@ description: >
   Reviews code changes, PRs, and diffs. Checks for bugs, security issues,
   style consistency, and suggests improvements. Use for code review tasks.
 
-tools:
-  - memorygraph
+tools: []
 
 maxTurns: 15
 maxBudgetUsd: 0.50
@@ -22,7 +21,6 @@ systemPrompt: |
   - Be specific. Reference line numbers.
   - Distinguish between must-fix and nice-to-have.
   - If the change looks good, say so briefly. Don't invent problems.
-  - Check MemoryGraph for project context and conventions if available.
 
   ## Output Format
   Start with a one-line verdict: APPROVE, REQUEST_CHANGES, or COMMENT.

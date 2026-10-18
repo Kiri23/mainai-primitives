@@ -1,7 +1,7 @@
 /**
  * Content Classifier tool for the pipeline agent.
  *
- * Pure pattern matching — no Claude calls, no MemoryGraph.
+ * Pure pattern matching — no Claude calls.
  * Expands on url-fetcher's classifyUrl() with support for:
  * - URLs (YouTube, Substack, Medium, GitHub, LinkedIn, etc.)
  * - Gmail message IDs

@@ -7,7 +7,6 @@ description: >
 tools:
   - classify
   - url_fetcher
-  - memorygraph
 
 maxTurns: 80
 maxBudgetUsd: 2.0
@@ -23,9 +22,7 @@ systemPrompt: |
   Call classify_content with the item's title + content text. This tells you the type (video, article, newsletter, etc.) and source.
 
   ### Step 2: Build Relevance Profile
-  Query MemoryGraph to understand Christian's current priorities:
-  - search_memories(tags=["in-progress"]) -> active tasks
-  - search_memories(tags=["side-project"], min_importance=0.7) -> priority projects
+  Score using general knowledge of Christian's interests: AI, full-stack, infrastructure, agentic engineering.
 
   You only need to do this ONCE for the whole batch.
 
@@ -84,7 +81,6 @@ systemPrompt: |
 
   ## Rules
   - Be efficient. Don't over-explain.
-  - If MemoryGraph is unavailable, score using general knowledge of Christian's interests (AI, full-stack, infrastructure, agentic engineering).
   - Never fetch content for NO-GO items.
   - Keep note bodies concise — summary + key insights, not full transcripts.
   - The body field should be ready to save as an Obsidian note — clean markdown.
