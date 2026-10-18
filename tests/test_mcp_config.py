@@ -18,17 +18,17 @@ class TestExtractMcpConfig:
     def test_extract_single_server(self, tmp_path):
         claude_json = _write_claude_json(tmp_path, {
             "mcpServers": {
-                "memorygraph": {"url": "http://localhost:3000"},
+                "obsidian": {"url": "http://localhost:3000"},
                 "other": {"url": "http://localhost:4000"},
             }
         })
 
         with patch("mainai_primitives.mcp_config.get_tmp_dir", return_value=tmp_path):
-            result = extract_mcp_config(["memorygraph"], claude_json)
+            result = extract_mcp_config(["obsidian"], claude_json)
 
         assert result is not None
         data = json.loads(result.read_text())
-        assert "memorygraph" in data["mcpServers"]
+        assert "obsidian" in data["mcpServers"]
         assert "other" not in data["mcpServers"]
         os.unlink(result)
 
@@ -53,7 +53,7 @@ class TestExtractMcpConfig:
             "mcpServers": {"other": {"url": "http://x"}}
         })
 
-        result = extract_mcp_config(["memorygraph"], claude_json)
+        result = extract_mcp_config(["obsidian"], claude_json)
         assert result is None
 
     def test_missing_file(self, tmp_path):

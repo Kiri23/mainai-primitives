@@ -21,8 +21,8 @@ pip install mainai-primitives
 from mainai_primitives import run_claude, ClaudeRunConfig, extract_mcp_config
 from mainai_primitives import parse_delimited_block
 
-# Set up MCP config for memorygraph
-mcp_path = extract_mcp_config(["memorygraph"])
+# Set up MCP config for obsidian
+mcp_path = extract_mcp_config(["obsidian"])
 
 # Run Claude
 config = ClaudeRunConfig(
